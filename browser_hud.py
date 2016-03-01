@@ -8,14 +8,22 @@ from IPython import get_ipython
 class browser_hud:
     
     def __init__(self,display_type=''):
-        self._widget = widgets.Box(_dom_classes=['inspector'])
-        self._widget.overflow_x = 'scroll'
-        self._widget.overflow_y = 'scroll'
-        self._widget.background_color='#444648'
+        self.widget = widgets.Box(_dom_classes=['inspector'])
+        self.widget.overflow_x = 'scroll'
+        self.widget.overflow_y = 'scroll'
+        self.widget.background_color='#444648'
         if display_type:
             self.display_type = display_type
         else:
             self.display_type = 'float'
+
+    def _get_all_components(self,_dict,_widget):
+        for c in _widget.children:
+            if hasattr(c,'id'):
+                _dict.update({c.id:c})
+            if hasattr(c,'children'):
+                _dict = self._get_all_components(_dict,c)
+        return _dict
 
     def set_color_scheme(self,_scheme,_objects=[]):
         for it in _objects:
@@ -148,19 +156,24 @@ class browser_hud:
         add_button = widgets.Button(description='ADD',
                                        tooltip='Add to Stored Comments',
                                        _dom_classes=['add_button'],
-                                       from_page=page_title)
+                                       from_page=page_title,
+                                       id='%s_add_button'%page_title)
         add_button.on_click(self.page_click)
         
-        cmt = widgets.Textarea(description='Comment')
+        cmt = widgets.Textarea(description='Comment',
+                               id='%s_comment'%page_title)
         score = widgets.BoundedIntText(description='Score',
                                        min=0,
-                                       max=5)
+                                       max=5,
+                                       id='%s_score'%page_title)
         score.width='50px'
         
-        saved_comments = widgets.Select(description='Stored Comments')
+        saved_comments = widgets.Select(description='Stored Comments',
+                                        id='%s_stored_comments'%page_title)
         edit_button = widgets.Button(description='EDIT',
                                      tooltip='Edit a Stored Comment',
-                                     from_page=page_title)
+                                     from_page=page_title,
+                                     id='%s_edit_button'%page_title)
         edit_button.on_click(self.page_click)
 
 
@@ -173,7 +186,8 @@ class browser_hud:
 
 
         category = widgets.Dropdown(description='Category',
-                                    options=['Not Specified','(New)'])
+                                    options=['Not Specified','(New)'],
+                                    id='%s_category'%page_title)
         category.observe(dropdown_check)
         
         col1 = add_button
@@ -187,33 +201,42 @@ class browser_hud:
         col4.margin =  '5px 0px 5px 0px'
 
         row = widgets.HBox([col1,col2,col3,col4])
-        return widgets.Box(children=[row],description=page_title)
+        return widgets.Box(children=[row],description=page_title,id='%s_page'%page_title)
 
     def make_trait_scoring_page(self,page_title='Traits'):
         
-        new_traits = widgets.Select(description='New Traits')
+        new_traits = widgets.Select(description='New Traits',
+                                    id='%s_new_traits'%page_title)
         score_button = widgets.Button(description='EDIT NEW',
-                                      from_page=page_title)
+                                      from_page=page_title,
+                                      id='%s_score_button'%page_title)
         score_button.on_click(self.page_click)
         
-        scored_traits = widgets.Select(description='Scored Traits')
+        scored_traits = widgets.Select(description='Scored Traits',
+                                       id='%s_scored_traits'%page_title)
         edit_button = widgets.Button(description='EDIT',
-                                     from_page=page_title)
+                                     from_page=page_title,
+                                     id='%s_edit_button'%page_title)
         edit_button.on_click(self.page_click)
         
         
-        cmt = widgets.Textarea(description='Comment')
+        cmt = widgets.Textarea(description='Comment',id='%s_comments'%page_title)
         score = widgets.BoundedIntText(description='Score',
                                        min=0,
                                        max=5,
-                                       _dom_classes=['score'])
+                                       _dom_classes=['score'],
+                                       id='%s_score'%page_title)
         score.width = '50px'
-        trait = widgets.Text(description='Trait',value='', disabled=True)
+        trait = widgets.Text(description='Trait',value='',
+                             disabled=True,
+                             id='%s_trait'%page_title)
         update_button = widgets.Button(description='UPDATE',
                                        tooltip='Increase Points',
-                                       from_page=page_title)
+                                       from_page=page_title,
+                                       id='%s_update_button'%page_title)
         update_button.on_click(self.page_click)
-        fake_button = widgets.Button(description='UPDATE',_dom_classes = ['update_btn_1'])
+        fake_button = widgets.Button(description='UPDATE',
+                                     _dom_classes = ['update_btn_1'])
 
 
         color_scheme =  {'background_color': '#75715e',
@@ -279,10 +302,10 @@ class browser_hud:
         col_b.align='end'
 
         row = widgets.HBox([col_a,col_b])
-        return widgets.Box(children=[row],description=page_title)
+        return widgets.Box(children=[row],description=page_title,id='%s_page'%page_title)
 
     def make_tabs(self,_pages):
-        tabs = widgets.Tab(children=_pages)
+        tabs = widgets.Tab(children=_pages,id='tabs')
         tabs.background_color='#444648'
         tabs.font_family='verdana'
         tabs.font_weight='bold'
@@ -310,21 +333,24 @@ class browser_hud:
                                    margin = '0% 2% 0% 2%',
                                    background_color='#3BBAF5',
                                    padding = 4,
-                                   _dom_classes=['prev_btn'])
+                                   _dom_classes=['prev_btn'],
+                                   id='prev_button')
         prev_button.on_click(click)
         
         next_button=widgets.Button(description='NEXT -->>',
                                    margin = '0% 0% 0% 0%',
                                    background_color='#3BBAF5',
                                    padding = 4,
-                                   _dom_classes=['next_btn'])
+                                   _dom_classes=['next_btn'],
+                                   id='next_button')
         next_button.on_click(click)
         
         exit_button=widgets.Button(description='EXIT',
                                    margin = '0% 0% 0% 70%',
                                    background_color = '#FA7676',
                                    padding = 4,
-                                   _dom_classes=['exit_btn'])
+                                   _dom_classes=['exit_btn'],
+                                   id='exit_button')
         exit_button.on_click(click)
 
         color_scheme = {'background_color':'#D95D18',
@@ -342,20 +368,9 @@ class browser_hud:
                                _dom_classes=['menu_bar'])
         return menu_bar
 
-    def make_widget(self,_children):
-        x = self._widget
-        x.children = _children
-        x._dom_classes = ['inspector']
-    
-    def remake_widget(self,children=[]):
-        if not children:
-            self._widget.__init__(self._widget.children)
-        else:
-            self._widget.__init__(children)
-
     def display_widget(self):
         self.set_css()
-        display(self._widget)
+        display(self.widget)
         if self.display_type=='float':
             get_ipython().run_cell_magic(u'javascript', u'', 
                                          u"""$('div.inspector').detach().prependTo($('body'))
@@ -380,7 +395,7 @@ class browser_hud:
     
     def close_widget(self,display_type=''):
         get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager').hide();")
-        self._widget.close()
+        self.widget.close()
         self.create_start_hud_button(self.display_type)
         
     def create_start_hud_button(self,display_type):
@@ -411,16 +426,18 @@ class browser_hud:
                                                             left: '50px',
                                                             });""")
 
-
     def start_hud(self):
-        self.General = self.make_general_page(page_title='General')
-        self.Work = self.make_trait_scoring_page(page_title='Work')
-        self.School = self.make_trait_scoring_page(page_title='School')
-        self.menu_bar = self.make_menu_bar()
-        self.tabs = self.make_tabs([self.General,self.Work,self.School])
-        self.make_widget([self.menu_bar,self.tabs])
+        menu_bar = self.make_menu_bar()
+        general = self.make_general_page(page_title='General')
+        work = self.make_trait_scoring_page(page_title='Work')
+        school = self.make_trait_scoring_page(page_title='School')
+        tabs = self.make_tabs([general,work,school])
+        
+        self.widget.children = [menu_bar,tabs]
+        self.widget.components = self._get_all_components({},self.widget)
         self.set_css()
         self.display_widget()
+
         global bh
         bh = self
         return bh
