@@ -3,7 +3,7 @@ class linkedin_hud:
     def __init__(self,hud,linkedin_user='seth.t.chase@gmail.com'):
         
         self.bh = hud
-        
+
         from os import environ as os_environ
         from os import path as os_path
         from sys import path as py_path
@@ -15,7 +15,7 @@ class linkedin_hud:
         self.x.web.initiate_web_session(linkedin_user)
         self.pg = self.x.pg
         self.T = self.pg.T
-        
+
     def load_data(self):
         _html,_info = self.x.web.collect_and_save_data(self.current_url)
         for tag in _html.find_all('div',{'id':'profile'}):
@@ -27,23 +27,15 @@ class linkedin_hud:
         self.current_url = self.urls[0]
         
         def general_page():
-            D=self.T.To_Class()
-            D.update({'page':'General',
-                  'row':0,
-                  '_view_name':'DropdownView',
-                  'description':'Category',
-                 })
-            general_info_qry="select trait from general_traits"
-            D.options=self.T.pd.read_sql(general_info_qry,
-                                              self.T.eng).trait.tolist()
-            D.options = sorted([it.replace('_',' ').title() for it in D.options])
-            general_page_dropdown = self.bh.General.children[0].children[1].children[1].children[1]
-            it = general_page_dropdown
-            current_list = list(it.options)
-            new_list = D.options
+            opts = self.T.pd.read_sql("select trait from general_traits",
+                                      self.T.eng).trait.tolist()
+            fresh_opts = sorted([it.replace('_',' ').title() for it in opts])
+            widget_component = self.bh.components['General_category']
+            current_list = list(widget_component.options)
+            new_list = fresh_opts
             new_list.insert(0,current_list[0])
             new_list.extend(current_list[1:])
-            it.options=tuple(new_list)  
+            widget_component.options=tuple(new_list)  
         def trait_pages():
 
             def get_work_df():
@@ -103,27 +95,13 @@ class linkedin_hud:
                 return hud_df
 
             def push_data_to_hud(hud_df,hud_page=''):
-            
-                D=self.T.To_Class()
-                D.update({'page':'General',
-                          'row':0,
-                          '_view_name':'SelectView',
-                         })
-
                 new_traits = hud_df[hud_df.score.isnull()].apply(lambda a: self.T.json.dumps({'trait':a.trait}),axis=1).tolist()
                 scored_traits = hud_df[hud_df.score.isnull()==False].copy()
                 scored_traits['score'] = scored_traits.score.map(int)
                 scored_traits = scored_traits.apply(lambda a: self.T.json.dumps(a.to_dict()),axis=1).tolist()
                 
-                data_col = getattr(self.bh,hud_page).children[0].children[1].children
-                for it in data_col:
-                    for c in it.children:
-                        if c.description=='New Traits':
-                            c.options = new_traits
-                            break
-                        elif c.description=='Scored Traits':
-                            c.options = scored_traits
-                            break
+                self.bh.components['%s_new_traits' % hud_page].options = new_traits
+                self.bh.components['%s_scored_traits' % hud_page].options = scored_traits
             
             hud_df = get_work_df()
             push_data_to_hud(hud_df,hud_page='Work')
