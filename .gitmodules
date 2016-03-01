@@ -1,0 +1,4 @@
+[submodule "py_classes"]
+	path = ./py_classes
+	url = git@github.com:sethc23/py_classes.git
+	branch = master
