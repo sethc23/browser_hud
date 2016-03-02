@@ -4,13 +4,14 @@ from IPython.display import display,HTML,clear_output
 import json
 from time import sleep
 from IPython import get_ipython
+from py_classes import To_Class
 
 class browser_hud:
     
     def __init__(self,display_type=''):
         self.widget = widgets.Box(_dom_classes=['inspector'])
-        self.widget.overflow_x = 'scroll'
-        self.widget.overflow_y = 'scroll'
+        self.widget.overflow_x = 'hidden'
+        self.widget.overflow_y = 'hidden'
         self.widget.background_color='#444648'
         if display_type:
             self.display_type = display_type
@@ -18,11 +19,26 @@ class browser_hud:
             self.display_type = 'float'
 
     def _get_all_components(self,_dict,_widget):
+        """
+            Recursively iterates through all children, 
+                updating the 'parent' attribute of each child, and
+                returning an object containing all children.
+        """
         for c in _widget.children:
+            
+            try:
+                c.parent = _widget
+            except:
+                print c
+                print _widget.children
+                c.parent = _widget
+
             if hasattr(c,'id'):
                 _dict.update({c.id:c})
+
             if hasattr(c,'children'):
                 _dict = self._get_all_components(_dict,c)
+
         return _dict
 
     def set_color_scheme(self,_scheme,_objects=[]):
@@ -46,7 +62,7 @@ class browser_hud:
                                                            '.prev_btn { }',
                                                            '.next_btn { }',
                                                            '.exit_btn { }',
-                                                           '.menu_bar { }',
+                                                           ".menu_bar { 'line-height': 5px }",
                                                            '.selected_tab { }',
                                                            '.unselect_tab { }',
                                                            '.comment {  }',
@@ -69,6 +85,13 @@ class browser_hud:
                                      u"""
                                      $('button.update_btn_1').css('visibility', 'hidden');
                                      $('.widget-label').css('color', '#53D2FF');
+                                     $('.widget-readout').css('color', '#53D2FF');
+                                     $('button.menu_bar_btn').css('line-height', '5px');
+                                     $("div.inspector").mouseover(function() {
+                                            $(this).css("overflow-y","scroll");
+                                        }).mouseout(function() {
+                                            $(this).css("overflow-y","hidden");
+                                        });
                                      """)
         # open external -- #pager-button-area > a:nth-child(1)
         # close pager -- pager-button-area > a:nth-child(2)
@@ -143,16 +166,22 @@ class browser_hud:
             if choice['new'] and type(choice['new'])==unicode:
                 D['new'] = choice['new']
             if [it for it in D.values() if it]:
-                this_page = bh.General
-                second_col = this_page.children[0].children[1]
+                second_col = self.widget.components.General_category.parent
                 children_list = list(second_col.children)
+                category_idx = children_list.index(self.widget.components.General_category)
                 if D['new']=='(New)':
-                    new_category = widgets.Text(description='(New)')
-                    children_list.append(new_category)
+                    new_category = widgets.Text(description='(New)',
+                                                id='%s_new_category'%page_title,
+                                                padding=col_item_padding,
+                                                width=box_width)
+                    children_list.insert(category_idx + 1, new_category)
                 if D['old']=='(New)':
-                    children_list.pop(-1)
+                    children_list.pop(category_idx + 1)
                 second_col.children = tuple(children_list)
-                
+                self.set_css()
+        
+        col_item_padding = '5px 0px 5px 0px'  
+
         add_button = widgets.Button(description='ADD',
                                        tooltip='Add to Stored Comments',
                                        _dom_classes=['add_button'],
@@ -161,13 +190,13 @@ class browser_hud:
         add_button.on_click(self.page_click)
         
         cmt = widgets.Textarea(description='Comment',
-                               id='%s_comment'%page_title)
-        score = widgets.BoundedIntText(description='Score',
-                                       min=0,
-                                       max=5,
-                                       id='%s_score'%page_title)
-        score.width='50px'
-        
+                               id='%s_comment'%page_title,
+                               padding=col_item_padding)
+        score = widgets.IntSlider(description='Score',
+                                  min=0,
+                                  max=5,
+                                  id='%s_score'%page_title,
+                                  padding=col_item_padding)
         saved_comments = widgets.Select(description='Stored Comments',
                                         id='%s_stored_comments'%page_title)
         edit_button = widgets.Button(description='EDIT',
@@ -175,7 +204,10 @@ class browser_hud:
                                      from_page=page_title,
                                      id='%s_edit_button'%page_title)
         edit_button.on_click(self.page_click)
-
+        category = widgets.Dropdown(description='Category',
+                                    options=['Not Specified','(New)'],
+                                    id='%s_category'%page_title)
+        category.observe(dropdown_check)
 
         color_scheme =  {'background_color': '#75715e',
                          'color': '#a6e22e',
@@ -184,16 +216,23 @@ class browser_hud:
                          'font_weight': u'bold'}
         self.set_color_scheme(color_scheme,[add_button,edit_button])
 
-
-        category = widgets.Dropdown(description='Category',
-                                    options=['Not Specified','(New)'],
-                                    id='%s_category'%page_title)
-        category.observe(dropdown_check)
+        box_width = '250px'
+        box_height = '81px'
+        slider_width = '220px'
+        button_width = '95px'
         
+
+        cmt.height = box_height
+        cmt.width = box_width
+        score.width = slider_width
+        saved_comments.height = box_height
+        saved_comments.width = box_width
+        
+
         col1 = add_button
         col1.margin = '5px 25px 0px 5px'
         cmt.margin = '5px 0px 5px 0px'
-        col2 = widgets.VBox([cmt,widgets.HBox([score,category])])
+        col2 = widgets.VBox([category,score,cmt],id='%s_col2'%page_title)
         col2.margin = '5px 0px 5px 0px'
         col3 = saved_comments
         col3.margin =  '5px 0px 5px 25px'
@@ -205,6 +244,8 @@ class browser_hud:
 
     def make_trait_scoring_page(self,page_title='Traits'):
         
+        col_item_padding = '5px 0px 5px 0px' 
+
         new_traits = widgets.Select(description='New Traits',
                                     id='%s_new_traits'%page_title)
         score_button = widgets.Button(description='EDIT NEW',
@@ -220,24 +261,28 @@ class browser_hud:
         edit_button.on_click(self.page_click)
         
         
-        cmt = widgets.Textarea(description='Comment',id='%s_comments'%page_title)
-        score = widgets.BoundedIntText(description='Score',
-                                       min=0,
-                                       max=5,
-                                       _dom_classes=['score'],
-                                       id='%s_score'%page_title)
-        score.width = '50px'
+        cmt = widgets.Textarea(description='Comment',
+                               id='%s_comments'%page_title,
+                               padding=col_item_padding)
+
         trait = widgets.Text(description='Trait',value='',
                              disabled=True,
-                             id='%s_trait'%page_title)
+                             id='%s_trait'%page_title,
+                             padding=col_item_padding)
+        
+        score = widgets.IntSlider(description='Score',
+                                  min=0,
+                                  max=5,
+                                  id='%s_score'%page_title,
+                                  padding=col_item_padding)
+
         update_button = widgets.Button(description='UPDATE',
                                        tooltip='Increase Points',
                                        from_page=page_title,
                                        id='%s_update_button'%page_title)
         update_button.on_click(self.page_click)
-        fake_button = widgets.Button(description='UPDATE',
-                                     _dom_classes = ['update_btn_1'])
-
+        fake_button = widgets.HBox()
+        
 
         color_scheme =  {'background_color': '#75715e',
                          'color': '#a6e22e',
@@ -246,40 +291,53 @@ class browser_hud:
                          'font_weight': u'bold'}
         self.set_color_scheme(color_scheme,[score_button,edit_button,update_button,fake_button])
 
+        box_width = '250px'
+        box_height = '81px'
+        slider_width = '220px'
+        button_width = '95px'
+
+        update_button.width = button_width
+        fake_button.width = button_width
+        trait.width = box_width
+        score.width = slider_width        
+        cmt.width = box_width
+        cmt.height = box_height
+        new_traits.margin = cmt.margin
+        new_traits.height = box_height
+        new_traits.width = box_width
+        scored_traits.height = box_height
+        scored_traits.width = box_width
+
         r1_col1 = update_button
-        r1_col1.margin = '5px 25px 0px 5px'
+        r1_col1.margin = '5px 0px 0px 5px'
         r2_col1 = fake_button
         r2_col1.margin = r1_col1.margin
         
-        cmt.height = '81px'
-        r1_col2 = cmt
-        r1_col2.margin = '5px 0px 5px 0px'
-        r1_col2.height = '81px'
+        r1_col2 = widgets.VBox([ trait,score ])
+        r1_col2.margin = '0px 0px 5px 0px'
+        r1_col2.height = box_height
+        
+        r2_col2 = cmt
+        r2_col2.margin = '5px 0px 5px 0px'
+        r2_col2.height = box_height
 
-        score.margin = '0px 0px 10px 0px'
-        r2_col2 = widgets.VBox([ score,trait ])
-        r2_col2.margin = r1_col2.margin
-        r2_col2.height = cmt.height
-
-
-        new_traits.margin = cmt.margin
-        new_traits.height = cmt.height
         r1_col3 = new_traits
         r1_col3.margin = '5px 0px 5px 0px'
         
-        scored_traits.height = cmt.height
+        
         r2_col3 = scored_traits
         r2_col3.height = r2_col2.height
         r1_col3.margin = r1_col3.margin
 
         r1_col4 = widgets.VBox([score_button])
-        r1_col4.width = '95px'
-        r1_col4.margin = '5px 0px 0px 0px'
+        r1_col4.width = button_width
+        r1_col4.margin = '5px 0px 0px 10px'
         r1_col4.pack='start'
         r1_col4.align='end'
 
         r2_col4 = widgets.VBox([edit_button])
         r2_col4.width = r1_col4.width
+        r2_col4.margin = r1_col4.margin
         r2_col4.height = r2_col3.height
         r2_col4.orientation='horizontal'
         r2_col4.pack='end'
@@ -289,6 +347,7 @@ class browser_hud:
         row2_a = widgets.HBox([r2_col1,r2_col2])
 
         col_a = widgets.VBox([row1_a,row2_a])
+        # col_a.margin = '0px 10px 0px 0px'
 
         row1_b = widgets.HBox([r1_col3,r1_col4])
         row1_b.pack='end'
@@ -330,28 +389,24 @@ class browser_hud:
                 self.close_widget()
 
         prev_button=widgets.Button(description='<<--  PREV',
-                                   margin = '0% 2% 0% 2%',
                                    background_color='#3BBAF5',
-                                   padding = 4,
-                                   _dom_classes=['prev_btn'],
+                                   _dom_classes=['prev_btn','menu_bar_btn'],
                                    id='prev_button')
         prev_button.on_click(click)
         
+        
         next_button=widgets.Button(description='NEXT -->>',
-                                   margin = '0% 0% 0% 0%',
                                    background_color='#3BBAF5',
-                                   padding = 4,
-                                   _dom_classes=['next_btn'],
+                                   _dom_classes=['next_btn','menu_bar_btn'],
                                    id='next_button')
         next_button.on_click(click)
         
         exit_button=widgets.Button(description='EXIT',
-                                   margin = '0% 0% 0% 70%',
                                    background_color = '#FA7676',
-                                   padding = 4,
-                                   _dom_classes=['exit_btn'],
+                                   _dom_classes=['exit_btn','menu_bar_btn'],
                                    id='exit_button')
         exit_button.on_click(click)
+
 
         color_scheme = {'background_color':'#D95D18',
                         'font_family':'verdana',
@@ -362,31 +417,57 @@ class browser_hud:
             for k,v in color_scheme.iteritems():
                 setattr(it,k,v)
         
-        menu_bar = widgets.HBox(children=[ prev_button,next_button,exit_button ],
-                                padding=4,
-                                align='center',
-                               _dom_classes=['menu_bar'])
+        button_height = '20px'
+        prev_button.height = button_height
+        next_button.height = button_height
+        exit_button.height = button_height
+        # prev_button.margin = '0% 0% 0% 0%'
+        # next_button.margin = '0% 0% 0% 0%'
+        exit_button.margin = '0px 0px 0px 15px'
+
+        col1 = widgets.HBox()
+        col1.width = '33%'
+        col2 = widgets.HBox([prev_button,next_button])
+        col2.width = '33%'
+        col2.pack='center'
+        col2.align='center'
+        col3 = widgets.HBox([exit_button])
+        col3.width = '33%'
+        col3.margin = '0% 0% 0% 25%'
+        # col3.pack = 'end'
+        # col3.align = 'end'
+        menu_bar = widgets.HBox(children=[ col1,col2,col3 ],
+                               _dom_classes=['menu_bar'],id='menu_bar')
+
+        menu_bar.padding = '4px'
+        # menu_bar.pack='center'
         return menu_bar
 
     def display_widget(self):
         self.set_css()
         display(self.widget)
         if self.display_type=='float':
+            get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager').height('280px');$('#pager').hide();")
             get_ipython().run_cell_magic(u'javascript', u'', 
                                          u"""$('div.inspector').detach().prependTo($('body'))
-                                             .css({ 'z-index': 999,           
-                                                    position: 'fixed',
-                                                    'box-shadow': '5px 5px 12px 3px black',
-                                                    'min-width': '50%',
-                                                    opacity: 0.9, 
-                                                    width: '1200px', 
-                                                    height: '350px', 
-                                                    left: '7.5%',
-                                                    bottom: '50px'
-                                                    }).draggable({scroll: 'true'}).resizable();""")
+                                            .css({ 'z-index': 999,           
+                                                position: 'fixed',
+                                                'box-shadow': '5px 5px 12px 3px black',
+                                                'min-width': '50%',
+                                                opacity: 0.9, 
+                                                left: '15%',
+                                                bottom: '50px'
+                                                })
+                                            .draggable({
+                                            
+                                                })
+                                            .resizable({
+                                                autoHide: 'true',
+                                                handles: "all",
+                                                });
+                                            """)
         elif self.display_type=='pager':
-            get_ipython().run_cell_magic(u'javascript', u'', 
-                                         u"""$('#pager').height('280px');$('#pager').show();""")
+            get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager').height('280px');$('#pager').show();")
             get_ipython().run_cell_magic(u'javascript', u'',u"$('div.inspector').prependTo($('#pager-container'));" )
             get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager-container > pre').hide();")
         self.set_css()
@@ -426,7 +507,10 @@ class browser_hud:
                                                             left: '50px',
                                                             });""")
 
-    def start_hud(self):
+    def start_hud(self,**kwargs):
+        
+        make_display = True if not kwargs.has_key('make_display') else kwargs['make_display']
+
         menu_bar = self.make_menu_bar()
         general = self.make_general_page(page_title='General')
         work = self.make_trait_scoring_page(page_title='Work')
@@ -434,9 +518,10 @@ class browser_hud:
         tabs = self.make_tabs([general,work,school])
         
         self.widget.children = [menu_bar,tabs]
-        self.widget.components = self._get_all_components({},self.widget)
+        self.widget.components = To_Class(self._get_all_components({},self.widget))
         self.set_css()
-        self.display_widget()
+        if make_display:
+            self.display_widget()
 
         global bh
         bh = self
