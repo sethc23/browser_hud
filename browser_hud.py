@@ -92,6 +92,7 @@ class browser_hud:
                                         }).mouseout(function() {
                                             $(this).css("overflow-y","hidden");
                                         });
+
                                      """)
         # open external -- #pager-button-area > a:nth-child(1)
         # close pager -- pager-button-area > a:nth-child(2)
@@ -454,17 +455,16 @@ class browser_hud:
                                                 position: 'fixed',
                                                 'box-shadow': '5px 5px 12px 3px black',
                                                 'min-width': '50%',
+                                                'min-height': '4%',
                                                 opacity: 0.9, 
                                                 left: '15%',
-                                                bottom: '50px'
                                                 })
-                                            .draggable({
-                                            
-                                                })
+                                            .draggable({scroll: 'true'})
                                             .resizable({
                                                 autoHide: 'true',
                                                 handles: "all",
                                                 });
+                                            $('div.inspector').offset({ top: '300', left: '300'})
                                             """)
         elif self.display_type=='pager':
             get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager').height('280px');$('#pager').show();")
@@ -474,26 +474,101 @@ class browser_hud:
         if hasattr(self,'start_container'):
             self.start_container.close()                         
     
-    def close_widget(self,display_type=''):
+    def close_widget(self,display_type='',exclude_start_button=False):
         get_ipython().run_cell_magic(u'javascript', u'',u"$('#pager').hide();")
         self.widget.close()
-        self.create_start_hud_button(self.display_type)
-        
+        if not exclude_start_button:
+            self.create_start_hud_button(self.display_type)
+
+    def toggle_element(self,element,force=''):
+        """
+
+            Configurable Elements include:
+                pager
+                input
+                output
+                menubar
+                prompt
+
+        """
+        if element=='pager':
+            ELEMENT='#pager'
+        elif element=='input':
+            ELEMENT='div.input'
+        elif element=='output':
+            ELEMENT='div.output_wrapper'
+        elif element=='menubar':
+            ELEMENT='#menus'
+        elif element=='prompt':
+            ELEMENT='.prompt'
+        else:
+            print "Configurable Elements include: ['pager', 'input', 'output', 'menubar', 'prompt']"
+            raise SystemError
+
+        D = {'ELEMENT' : ELEMENT}
+
+        if not force:
+            get_ipython().run_cell_magic(u'javascript', u'',
+                u"""
+                    function toggle_output(){ 
+                        var is_visible=$('%(ELEMENT)s').is(":visible"); 
+                        if (is_visible) { 
+                            $('%(ELEMENT)s').hide(); 
+                        } else { 
+                            $('%(ELEMENT)s').show(); 
+                        } 
+                    };
+                    toggle_output();""" % D)
+        elif force=='show':
+            get_ipython().run_cell_magic(u'javascript', u'',
+                u"""$('%(ELEMENT)s').show();""" % D)
+        elif force=='hide':
+            get_ipython().run_cell_magic(u'javascript', u'',
+                u"""$('%(ELEMENT)s').hide();""" % D)
+        else:
+            print "Force options are: ['show', 'hide']"
+            raise SystemError
+    
+    def TOGGLE_ELEMENTS(self):
+        return ['pager','input','output','menubar','prompt']
+
+    def toggle_pager(self,force=''):
+        self.toggle_element('pager',force)
+    def toggle_input(self,force=''):
+        self.toggle_element('input',force)
+    def toggle_output(self,force=''):
+        self.toggle_element('output',force)
+    def toggle_menubar(self,force=''):
+        self.toggle_element('menubar',force)
+    def toggle_prompt(self,force=''):
+        self.toggle_element('prompt',force)
+
+    def align_top_left(self):
+        get_ipython().run_cell_magic(u'javascript', u'',
+                                     u"""
+                                     $('#notebook').css('padding-top', '0px'); 
+                                     $('#notebook').css('display', 'table-cell');
+                                     """)
+
     def create_start_hud_button(self,display_type):
-        self.start_button = widgets.Button(description='START HUD')
+        self.start_button = widgets.Button(description='START HUD',
+                                           id='start_button')
         self.start_button.background_color = '#30FA34'
 
         def click_start_hud_btn(b):
             self.display_type = self.start_container.display_type
             self.start_container.close()
             self.start_button.close()
-            get_ipython().run_cell_magic(u'javascript', u'',u"$('div.start_button_container').remove();")
+            get_ipython().run_cell_magic(u'javascript', u'',
+                                         u"$('div.start_button_container').remove();")
             self.display_type = 'float' if self.display_type=='pager' else 'pager'
             browser_hud(self.display_type).start_hud()
 
         self.start_button.on_click(click_start_hud_btn)
 
-        self.start_container = widgets.Box([self.start_button],_dom_classes=['start_button_container'])
+        self.start_container = widgets.Box([self.start_button],
+                                           _dom_classes=['start_button_container'],
+                                           id='start_container')
         self.start_container.height='40px'
         self.start_container.width='70px'
         self.start_container.display_type = self.display_type
@@ -510,6 +585,11 @@ class browser_hud:
     def start_hud(self,**kwargs):
         
         make_display = True if not kwargs.has_key('make_display') else kwargs['make_display']
+        # hide_input = False if not kwargs.has_key('hide_input') else kwargs['hide_input']
+        # hide_output = False if not kwargs.has_key('hide_output') else kwargs['hide_output']
+        # hide_menubar = False if not kwargs.has_key('hide_menubar') else kwargs['hide_menubar']
+        # hide_prompt = False if not kwargs.has_key('hide_prompt') else kwargs['hide_prompt']
+        align_top_left = False if not kwargs.has_key('align_top_left') else kwargs['align_top_left']
 
         menu_bar = self.make_menu_bar()
         general = self.make_general_page(page_title='General')
@@ -523,9 +603,38 @@ class browser_hud:
         if make_display:
             self.display_widget()
 
+        TOGGLE_ELEMENTS = self.TOGGLE_ELEMENTS()
+        for k,v in kwargs.iteritems():
+            if TOGGLE_ELEMENTS.count(k.replace('hide_','',1)):
+                self.toggle_element(k.replace('hide_','',1),force='hide')
+            elif TOGGLE_ELEMENTS.count(k.replace('show_','',1)):
+                self.toggle_element(k.replace('show_','',1),force='show')
+
+        if align_top_left:
+            self.align_top_left()
+
         global bh
         bh = self
         return bh
 
+    def load_time_tracker(self):
+        # Program Library
+        THIS_NOTEBOOK = 'time_tracker_widget'
+
+        make_display=True
+
+        from os import environ as os_environ
+        from os import path as os_path
+        from sys import path as py_path
+        py_path.append(os_path.join(os_environ['G'],'browser_hud'))
+
+        from browser_hud import *
+
+        display_type='None'
+        bh = browser_hud(display_type)
+
+        bh.start_hud(hide_input=True,hide_output=True,
+                     hide_menubar=True,hide_prompt=True,
+                     align_top_left=True)
 
 
